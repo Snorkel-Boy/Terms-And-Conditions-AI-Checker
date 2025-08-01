@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T&C and Privacy Policy Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for the result display */
+        #result-card {
+            transition: all 0.3s ease-in-out;
+        }
+        .prose p {
+            margin-bottom: 1em;
+            line-height: 1.6;
+        }
+        .prose h3 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            font-weight: 600;
+        }
+        .prose ul {
+            list-style-type: disc;
+            list-style-position: outside;
+            padding-left: 2em;
+        }
+        .prose li {
+            margin-bottom: 0.5em;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto px-4 py-8 md:py-16 max-w-4xl">
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-3xl md:text-5xl font-bold text-gray-900">T&C Analyzer</h1>
+            <p class="mt-3 text-md md:text-lg text-gray-600">Paste any Terms & Conditions or Privacy Policy text below to get an AI-powered analysis of potential risks and legal bonds.</p>
+        </header>
+
+        <main>
+            <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-200">
+                <div class="mb-6">
+                    <label for="terms-input" class="block text-lg font-semibold mb-2 text-gray-700">Paste your text here:</label>
+                    <textarea id="terms-input" rows="12" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150 ease-in-out text-base" placeholder="e.g., By using our service, you agree to grant us a perpetual, irrevocable, worldwide, royalty-free license to use, reproduce, modify, and distribute your content..."></textarea>
+                </div>
+                <div class="text-center">
+                    <button id="analyze-button" class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500 focus:ring-opacity-50 transition-transform transform hover:scale-105 disabled:bg-emerald-400 disabled:cursor-not-allowed disabled:transform-none">
+                        <span id="button-text">Analyze Text</span>
+                        <span id="loading-spinner" class="hidden">
+                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Analyzing...
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="result-container" class="mt-8 md:mt-12">
+                </div>
+        </main>
+    </div>
+
+    <script>
+        const analyzeButton = document.getElementById('analyze-button');
+        const buttonText = document.getElementById('button-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const termsInput = document.getElementById('terms-input');
+        const resultContainer = document.getElementById('result-container');
+
+        analyzeButton.addEventListener('click', analyzeText);
+
+        async function analyzeText() {
+            const textToAnalyze = termsInput.value.trim();
+            if (!textToAnalyze) {
+                displayError("Please paste some text to analyze.");
+                return;
+            }
+
+            setLoadingState(true);
+            resultContainer.innerHTML = ''; // Clear previous results
+
+            try {
+                const prompt = `
+                    As a "T&C Analyzer" AI, your task is to evaluate the provided text from a terms and conditions document or privacy policy. 
+                    Identify clauses that are potentially deceptive, unfair, overly broad, or create significant legal obligations for the user. 
+                    
+                    Based on your analysis, provide a response in JSON format. The JSON object must contain two keys:
+                    1. "rating": An integer from 1 to 10, where 1 represents "Very Safe" and 10 represents "Extremely Risky/Predatory".
+                    2. "explanation": A detailed but easy-to-understand summary of your findings. Use markdown for formatting, including lists and bold text, to make it easy to read. Start with a one-sentence overview. Then, use markdown to list the key clauses of concern and explain why they are flagged.
+                    
+                    Analyze the following text:
+                    ---
+                    ${textToAnalyze}
+                    ---
+                `;
+
+                // The API key should be an empty string. The execution environment will handle it.
+                const apiKey = "AIzaSyB7_MFld8nVK01sbSC1xgWZbUzUx-2l03A"; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                    }
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
+                    const content = result.candidates[0].content.parts[0].text;
+                    const parsedContent = JSON.parse(content);
+                    displayResults(parsedContent.rating, parsedContent.explanation);
+                } else {
+                    throw new Error("Invalid response structure from API.");
+                }
+
+            } catch (error) {
+                console.error("Error during analysis:", error);
+                displayError(`An error occurred: ${error.message}. Please check the console for more details and try again.`);
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        function displayResults(rating, explanation) {
+            const ratingColor = getRatingColor(rating);
+            
+            // Use marked.js to convert the markdown to HTML
+            const formattedExplanation = marked.parse(explanation);
+
+            const resultHTML = `
+                <div id="result-card" class="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-200 transform scale-95 opacity-0">
+                    <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6 text-center">Analysis Complete</h2>
+                    <div class="flex flex-col md:flex-row items-center gap-6 md:gap-8">
+                        <div class="flex-shrink-0">
+                            <div class="w-32 h-32 md:w-40 md:h-40 rounded-full flex items-center justify-center text-white font-extrabold text-5xl md:text-6xl" style="background-color: ${ratingColor.bg}; border: 8px solid ${ratingColor.border};">
+                                ${rating}
+                            </div>
+                            <p class="text-center font-bold text-lg mt-3" style="color: ${ratingColor.text};">${getRatingText(rating)}</p>
+                        </div>
+                        <div class="prose prose-lg max-w-none text-gray-700">
+                            ${formattedExplanation}
+                        </div>
+                    </div>
+                </div>
+            `;
+            resultContainer.innerHTML = resultHTML;
+
+            // Animate the result card into view
+            setTimeout(() => {
+                const card = document.getElementById('result-card');
+                card.style.transform = 'scale(1)';
+                card.style.opacity = '1';
+            }, 100);
+        }
+
+        function displayError(message) {
+            resultContainer.innerHTML = `
+                <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg" role="alert">
+                    <p class="font-bold">Error</p>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+        
+        function setLoadingState(isLoading) {
+            analyzeButton.disabled = isLoading;
+            if (isLoading) {
+                buttonText.classList.add('hidden');
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                buttonText.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        function getRatingColor(rating) {
+            if (rating <= 4) return { bg: '#34D399', border: '#D1FAE5', text: '#065F46' }; // Green
+            if (rating <= 7) return { bg: '#FCD34D', border: '#FEF9C3', text: '#92400E' }; // Yellow
+            return { bg: '#F87171', border: '#FEE2E2', text: '#991B1B' }; // Red
+        }
+
+        function getRatingText(rating) {
+            if (rating <= 2) return "Very Low Risk";
+            if (rating <= 4) return "Low Risk";
+            if (rating <= 6) return "Moderate Risk";
+            if (rating <= 8) return "High Risk";
+            return "Very High Risk";
+        }
+
+    </script>
+</body>
+</html>
